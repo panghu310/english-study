@@ -8,7 +8,8 @@ import {
   getOrderedWords,
   getReaderDockState,
   getStatusTabs,
-  getVisibleWords
+  getVisibleWords,
+  replaceCurrentAudio
 } from "../../src/app.js";
 
 const sampleWords = [
@@ -106,4 +107,28 @@ test("悬浮朗读控制支持继续、停止和从头开始", () => {
     canRestart: true,
     primaryLabel: "继续 5/6"
   });
+});
+
+test("重新朗读会立即停止上一次本地音频", () => {
+  const previousAudio = {
+    paused: false,
+    currentTime: 3,
+    pauseCalls: 0,
+    pause() {
+      this.paused = true;
+      this.pauseCalls += 1;
+    }
+  };
+  const nextAudio = {
+    currentTime: 0,
+    pause() {}
+  };
+  const owner = { currentAudio: previousAudio };
+
+  replaceCurrentAudio(owner, nextAudio);
+
+  assert.equal(previousAudio.paused, true);
+  assert.equal(previousAudio.currentTime, 0);
+  assert.equal(previousAudio.pauseCalls, 1);
+  assert.equal(owner.currentAudio, nextAudio);
 });

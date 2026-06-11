@@ -222,6 +222,18 @@ export function getAudioPath(word) {
   return `./audio/${safeName}.m4a`;
 }
 
+export function replaceCurrentAudio(owner, nextAudio) {
+  const previousAudio = owner?.currentAudio;
+  if (previousAudio && previousAudio !== nextAudio) {
+    previousAudio.pause();
+    previousAudio.currentTime = 0;
+  }
+
+  if (owner) {
+    owner.currentAudio = nextAudio;
+  }
+}
+
 function isBrowser() {
   return typeof window !== "undefined" && typeof document !== "undefined";
 }
@@ -426,17 +438,18 @@ function playLocalAudio(word, waitUntilEnd = false) {
     const app = window.__englishStudyApp;
     const audio = new Audio(getAudioPath(word));
     audio.preload = "auto";
-    if (waitUntilEnd && app?.reader) {
-      cancelCurrentReaderAudio(app);
-      app.reader.currentAudio = audio;
+    const audioOwner = waitUntilEnd ? app?.reader : app?.speaker;
+
+    if (audioOwner) {
+      replaceCurrentAudio(audioOwner, audio);
     }
 
     audio.onended = () => {
-      if (app?.reader?.currentAudio === audio) app.reader.currentAudio = null;
+      if (audioOwner?.currentAudio === audio) audioOwner.currentAudio = null;
       resolve(true);
     };
     audio.onerror = () => {
-      if (app?.reader?.currentAudio === audio) app.reader.currentAudio = null;
+      if (audioOwner?.currentAudio === audio) audioOwner.currentAudio = null;
       resolve(false);
     };
 
@@ -453,22 +466,20 @@ function playLocalAudio(word, waitUntilEnd = false) {
         }
       })
       .catch(() => {
-        if (app?.reader?.currentAudio === audio) app.reader.currentAudio = null;
+        if (audioOwner?.currentAudio === audio) audioOwner.currentAudio = null;
         resolve(false);
       });
   });
 }
 
-function cancelCurrentReaderAudio(app) {
-  const audio = app?.reader?.currentAudio;
-  if (!audio) return;
-  audio.pause();
-  audio.currentTime = 0;
-  app.reader.currentAudio = null;
+function clearCurrentAudio(owner) {
+  if (!owner) return;
+  replaceCurrentAudio(owner, null);
 }
 
 function stopSpeechAndAudio(app) {
-  cancelCurrentReaderAudio(app);
+  clearCurrentAudio(app?.reader);
+  clearCurrentAudio(app?.speaker);
   if ("speechSynthesis" in window) {
     window.speechSynthesis.cancel();
   }
@@ -645,6 +656,9 @@ function initApp() {
       activeStatus: "",
       orderKey: "",
       runId: 0
+    },
+    speaker: {
+      currentAudio: null
     }
   };
 
