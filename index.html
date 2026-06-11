@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>英语小词典</title>
+    <link rel="stylesheet" href="./src/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="app-header">
+        <p class="eyebrow">Oxford 5000 + IT 高频词样本</p>
+        <h1>英语小词典</h1>
+        <p class="subtitle">音节拆分、极简释义、点一下就读。</p>
+      </header>
+
+      <nav class="tabs" id="tabs" aria-label="学习分区"></nav>
+
+      <section class="toolbar" aria-label="当前分区信息">
+        <p id="sectionHint"></p>
+        <div class="reader-controls" id="readerControls"></div>
+      </section>
+
+      <section class="word-list" id="wordList" aria-live="polite"></section>
+      <p class="toast" id="toast" role="status" aria-live="polite"></p>
+    </main>
+
+    <script type="module" src="./src/app.js"></script>
+  </body>
+</html>

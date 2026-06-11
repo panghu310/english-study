@@ -1,0 +1,8 @@
+node_modules/
+.DS_Store
+
+data/source/
+data/cache/
+data/tmp-audio/
+data/generated/*.log
+data/generated/*.pid
