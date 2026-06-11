@@ -26,6 +26,7 @@ body {
     linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(243, 246, 245, 0.9)),
     var(--bg);
   color: var(--ink);
+  padding-bottom: calc(86px + env(safe-area-inset-bottom));
 }
 
 button {
@@ -112,12 +113,42 @@ h1 {
   margin: 0 0 10px;
 }
 
-.reader-controls {
-  display: grid;
-  grid-template-columns: minmax(94px, 0.8fr) minmax(80px, 0.7fr) minmax(0, 1.5fr);
-  gap: 8px;
+.order-control {
+  display: inline-grid;
+  grid-template-columns: auto minmax(130px, 190px);
   align-items: center;
-  margin-bottom: 12px;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.94rem;
+}
+
+.order-control select {
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--ink);
+  padding: 0 10px;
+  font: inherit;
+}
+
+.reader-dock {
+  position: fixed;
+  right: max(12px, env(safe-area-inset-right));
+  bottom: max(12px, env(safe-area-inset-bottom));
+  left: max(12px, env(safe-area-inset-left));
+  z-index: 5;
+  display: grid;
+  grid-template-columns: minmax(128px, 1fr) minmax(72px, 0.52fr) minmax(72px, 0.52fr);
+  gap: 8px;
+  width: min(calc(100% - 24px), 560px);
+  margin: 0 auto;
+  border: 1px solid rgba(217, 223, 220, 0.92);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 16px 42px rgba(35, 49, 45, 0.18);
+  padding: 8px;
+  backdrop-filter: blur(14px);
 }
 
 .reader-button {
@@ -140,13 +171,6 @@ h1 {
 .reader-button:disabled {
   cursor: not-allowed;
   opacity: 0.46;
-}
-
-.reader-status {
-  min-width: 0;
-  color: var(--muted);
-  font-size: 0.94rem;
-  line-height: 1.25;
 }
 
 .word-list {
@@ -247,7 +271,7 @@ h1 {
 .toast {
   position: fixed;
   right: 16px;
-  bottom: 18px;
+  bottom: calc(86px + env(safe-area-inset-bottom));
   left: 16px;
   margin: 0 auto;
   width: min(calc(100% - 32px), 520px);
@@ -266,7 +290,8 @@ h1 {
 @media (hover: hover) {
   .tab:hover,
   .move-button:hover,
-  .speak-button:hover {
+  .speak-button:hover,
+  .reader-button:hover {
     border-color: var(--accent);
   }
 }
@@ -297,12 +322,8 @@ h1 {
     padding: 0 6px;
   }
 
-  .reader-controls {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .reader-status {
-    grid-column: 1 / -1;
+  .reader-dock {
+    grid-template-columns: minmax(116px, 1fr) minmax(64px, 0.48fr) minmax(64px, 0.48fr);
   }
 
   .meaning {

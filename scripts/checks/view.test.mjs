@@ -5,9 +5,11 @@ import {
   getAvailableActions,
   getAudioPath,
   getContinuousReadQueue,
+  getOrderedWords,
+  getReaderDockState,
   getStatusTabs,
   getVisibleWords
-} from "../src/app.js";
+} from "../../src/app.js";
 
 const sampleWords = [
   { word: "computer" },
@@ -63,4 +65,45 @@ test("连续读队列只包含当前分区的单词", () => {
 test("音频路径使用安全文件名", () => {
   assert.equal(getAudioPath("computer"), "./audio/computer.m4a");
   assert.equal(getAudioPath("log in"), "./audio/log-in.m4a");
+});
+
+test("推荐顺序按学习频段推进，并打散同频段字母顺序", () => {
+  const words = [
+    { word: "zoo", level: "c1", category: "daily", source: "oxford5000" },
+    { word: "able", level: "a1", category: "daily", source: "oxford5000" },
+    { word: "about", level: "a1", category: "daily", source: "oxford5000" },
+    { word: "computer", level: "", category: "it", source: "csavl" }
+  ];
+
+  const ordered = getOrderedWords(words, "recommended").map((item) => item.word);
+
+  assert.equal(ordered.indexOf("zoo") > ordered.indexOf("able"), true);
+  assert.equal(ordered.indexOf("computer") > ordered.indexOf("zoo"), true);
+  assert.notDeepEqual(ordered.slice(0, 2), ["able", "about"]);
+});
+
+test("悬浮朗读控制支持继续、停止和从头开始", () => {
+  assert.deepEqual(getReaderDockState({
+    isReading: true,
+    isPaused: false,
+    index: 4,
+    queue: [{}, {}, {}, {}, {}, {}]
+  }, 12), {
+    canContinue: false,
+    canStop: true,
+    canRestart: true,
+    primaryLabel: "朗读中 5/6"
+  });
+
+  assert.deepEqual(getReaderDockState({
+    isReading: false,
+    isPaused: true,
+    index: 4,
+    queue: [{}, {}, {}, {}, {}, {}]
+  }, 12), {
+    canContinue: true,
+    canStop: false,
+    canRestart: true,
+    primaryLabel: "继续 5/6"
+  });
 });

@@ -18,10 +18,14 @@
 
       <section class="toolbar" aria-label="当前分区信息">
         <p id="sectionHint"></p>
-        <div class="reader-controls" id="readerControls"></div>
+        <label class="order-control">
+          <span>顺序</span>
+          <select id="orderSelect" aria-label="单词顺序"></select>
+        </label>
       </section>
 
       <section class="word-list" id="wordList" aria-live="polite"></section>
+      <section class="reader-dock" id="readerControls" aria-label="连续朗读控制"></section>
       <p class="toast" id="toast" role="status" aria-live="polite"></p>
     </main>
 

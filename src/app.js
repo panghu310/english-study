@@ -30,6 +30,27 @@ export const STATUS_CONFIG = {
 };
 
 const STORAGE_KEY = "english-pocket-dictionary-status-v1";
+const ORDER_STORAGE_KEY = "english-pocket-dictionary-order-v1";
+const DEFAULT_ORDER = "recommended";
+
+export const ORDER_CONFIG = {
+  recommended: {
+    label: "推荐顺序",
+    hint: "核心约2000词、扩展词、IT词分段推进，段内打散。"
+  },
+  level: {
+    label: "等级顺序",
+    hint: "按 A1 到 C1 推进，适合从浅到深扫词。"
+  },
+  itFirst: {
+    label: "IT优先",
+    hint: "先看开发和技术文档里更容易遇到的词。"
+  },
+  alphabetical: {
+    label: "字母顺序",
+    hint: "按 A 到 Z 排列，适合查找。"
+  }
+};
 
 export function getWordStatus(statusMap, word) {
   return statusMap[word] || DEFAULT_STATUS;
@@ -82,6 +103,116 @@ export function getContinuousReadQueue(words, statusMap, activeStatus) {
   return getVisibleWords(words, statusMap, activeStatus);
 }
 
+export function getOrderOptions() {
+  return Object.entries(ORDER_CONFIG).map(([key, config]) => ({
+    key,
+    label: config.label
+  }));
+}
+
+export function getOrderedWords(words, orderKey = DEFAULT_ORDER) {
+  const selectedOrder = ORDER_CONFIG[orderKey] ? orderKey : DEFAULT_ORDER;
+  const sorted = [...words];
+
+  if (selectedOrder === "alphabetical") {
+    return sorted.sort((a, b) => a.word.localeCompare(b.word));
+  }
+
+  if (selectedOrder === "itFirst") {
+    return sorted.sort((a, b) => {
+      const topicDiff = Number(getStudyBand(a) !== "it") - Number(getStudyBand(b) !== "it");
+      return topicDiff || compareRecommended(a, b);
+    });
+  }
+
+  if (selectedOrder === "level") {
+    return sorted.sort(compareLevelOrder);
+  }
+
+  return sorted.sort(compareRecommended);
+}
+
+export function getReaderDockState(reader, currentCount) {
+  const queueLength = reader.queue?.length || 0;
+  const rawPosition = (reader.index || 0) + 1;
+  const position = queueLength > 0 ? Math.min(rawPosition, queueLength) : 0;
+
+  if (reader.isReading) {
+    return {
+      canContinue: false,
+      canStop: true,
+      canRestart: currentCount > 0,
+      primaryLabel: `朗读中 ${position}/${queueLength}`
+    };
+  }
+
+  if (reader.isPaused && queueLength > 0) {
+    return {
+      canContinue: true,
+      canStop: false,
+      canRestart: currentCount > 0,
+      primaryLabel: `继续 ${position}/${queueLength}`
+    };
+  }
+
+  return {
+    canContinue: currentCount > 0,
+    canStop: false,
+    canRestart: currentCount > 0,
+    primaryLabel: currentCount > 0 ? `连续读 ${currentCount}` : "当前分区 0"
+  };
+}
+
+function compareRecommended(a, b) {
+  return getBandOrder(a) - getBandOrder(b)
+    || getLevelOrder(a) - getLevelOrder(b)
+    || getStableShuffleKey(a.word) - getStableShuffleKey(b.word)
+    || a.word.localeCompare(b.word);
+}
+
+function compareLevelOrder(a, b) {
+  return getLevelOrder(a) - getLevelOrder(b)
+    || getStableShuffleKey(a.word) - getStableShuffleKey(b.word)
+    || a.word.localeCompare(b.word);
+}
+
+function getBandOrder(item) {
+  const order = {
+    core: 0,
+    extension: 1,
+    it: 2
+  };
+  return order[getStudyBand(item)] ?? 9;
+}
+
+function getStudyBand(item) {
+  if (item.level && ["a1", "a2", "b1"].includes(item.level)) return "core";
+  if (item.level && ["b2", "c1"].includes(item.level)) return "extension";
+  if (item.category === "it" || String(item.source || "").includes("csavl")) return "it";
+  return "extension";
+}
+
+function getLevelOrder(item) {
+  const order = {
+    a1: 0,
+    a2: 1,
+    b1: 2,
+    b2: 3,
+    c1: 4
+  };
+  return order[item.level] ?? 5;
+}
+
+function getStableShuffleKey(word) {
+  let hash = 2166136261;
+  const text = `study-${word}`;
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
 export function getAudioPath(word) {
   const safeName = word
     .toLowerCase()
@@ -102,6 +233,23 @@ function loadStatusMap() {
   } catch {
     showToast("进度读取失败，本次先临时使用。");
     return {};
+  }
+}
+
+function loadOrderKey() {
+  try {
+    const saved = window.localStorage.getItem(ORDER_STORAGE_KEY);
+    return ORDER_CONFIG[saved] ? saved : DEFAULT_ORDER;
+  } catch {
+    return DEFAULT_ORDER;
+  }
+}
+
+function saveOrderKey(orderKey) {
+  try {
+    window.localStorage.setItem(ORDER_STORAGE_KEY, orderKey);
+  } catch {
+    showToast("顺序保存失败，刷新后可能恢复默认。");
   }
 }
 
@@ -126,6 +274,7 @@ function render() {
   const app = window.__englishStudyApp;
   renderTabs(app);
   renderSectionHint(app);
+  renderOrderSelect(app);
   renderReaderControls(app);
   renderWords(app);
 }
@@ -149,28 +298,43 @@ function renderTabs(app) {
 
 function renderSectionHint(app) {
   const hint = document.querySelector("#sectionHint");
-  hint.textContent = STATUS_CONFIG[app.activeStatus].hint;
+  hint.textContent = `${STATUS_CONFIG[app.activeStatus].hint} ${ORDER_CONFIG[app.orderKey].hint}`;
+}
+
+function renderOrderSelect(app) {
+  const orderSelect = document.querySelector("#orderSelect");
+  if (!orderSelect) return;
+
+  orderSelect.innerHTML = getOrderOptions()
+    .map((item) => {
+      return `<option value="${item.key}" ${item.key === app.orderKey ? "selected" : ""}>${item.label}</option>`;
+    })
+    .join("");
 }
 
 function renderReaderControls(app) {
   const controls = document.querySelector("#readerControls");
-  const currentCount = getContinuousReadQueue(app.words, app.statusMap, app.activeStatus).length;
-  const isReading = app.reader.isReading;
+  const orderedWords = getOrderedWords(app.words, app.orderKey);
+  const currentCount = getContinuousReadQueue(orderedWords, app.statusMap, app.activeStatus).length;
+  const state = getReaderDockState(app.reader, currentCount);
 
   controls.innerHTML = `
-    <button class="reader-button reader-primary" type="button" data-read-all ${isReading || currentCount === 0 ? "disabled" : ""}>
-      连续读
+    <button class="reader-button reader-primary" type="button" data-continue-reading ${state.canContinue ? "" : "disabled"}>
+      ${state.primaryLabel}
     </button>
-    <button class="reader-button" type="button" data-stop-reading ${isReading ? "" : "disabled"}>
-      暂停
+    <button class="reader-button" type="button" data-stop-reading ${state.canStop ? "" : "disabled"}>
+      停止
     </button>
-    <span class="reader-status">${isReading ? `正在读 ${app.reader.index + 1}/${app.reader.queue.length}` : `当前分区 ${currentCount} 个词`}</span>
+    <button class="reader-button" type="button" data-restart-reading ${state.canRestart ? "" : "disabled"}>
+      从头
+    </button>
   `;
 }
 
 function renderWords(app) {
   const list = document.querySelector("#wordList");
-  const visibleWords = getVisibleWords(app.words, app.statusMap, app.activeStatus);
+  const orderedWords = getOrderedWords(app.words, app.orderKey);
+  const visibleWords = getVisibleWords(orderedWords, app.statusMap, app.activeStatus);
 
   if (visibleWords.length === 0) {
     list.innerHTML = `<p class="empty-state">这个分区暂时没有单词。</p>`;
@@ -259,11 +423,22 @@ async function speakWordUntilEnd(word) {
 
 function playLocalAudio(word, waitUntilEnd = false) {
   return new Promise((resolve) => {
+    const app = window.__englishStudyApp;
     const audio = new Audio(getAudioPath(word));
     audio.preload = "auto";
+    if (waitUntilEnd && app?.reader) {
+      cancelCurrentReaderAudio(app);
+      app.reader.currentAudio = audio;
+    }
 
-    audio.onended = () => resolve(true);
-    audio.onerror = () => resolve(false);
+    audio.onended = () => {
+      if (app?.reader?.currentAudio === audio) app.reader.currentAudio = null;
+      resolve(true);
+    };
+    audio.onerror = () => {
+      if (app?.reader?.currentAudio === audio) app.reader.currentAudio = null;
+      resolve(false);
+    };
 
     const playPromise = audio.play();
     if (!playPromise) {
@@ -277,22 +452,53 @@ function playLocalAudio(word, waitUntilEnd = false) {
           resolve(true);
         }
       })
-      .catch(() => resolve(false));
+      .catch(() => {
+        if (app?.reader?.currentAudio === audio) app.reader.currentAudio = null;
+        resolve(false);
+      });
   });
 }
 
-function stopContinuousRead() {
-  const app = window.__englishStudyApp;
-  if (!app?.reader) return;
+function cancelCurrentReaderAudio(app) {
+  const audio = app?.reader?.currentAudio;
+  if (!audio) return;
+  audio.pause();
+  audio.currentTime = 0;
+  app.reader.currentAudio = null;
+}
 
-  app.reader.isReading = false;
-  app.reader.queue = [];
-  app.reader.index = 0;
-  app.reader.currentWord = "";
-
+function stopSpeechAndAudio(app) {
+  cancelCurrentReaderAudio(app);
   if ("speechSynthesis" in window) {
     window.speechSynthesis.cancel();
   }
+}
+
+function resetContinuousRead() {
+  const app = window.__englishStudyApp;
+  if (!app?.reader) return;
+
+  app.reader.runId += 1;
+  app.reader.isReading = false;
+  app.reader.isPaused = false;
+  app.reader.queue = [];
+  app.reader.index = 0;
+  app.reader.currentWord = "";
+  app.reader.activeStatus = "";
+  app.reader.orderKey = "";
+
+  stopSpeechAndAudio(app);
+}
+
+function pauseContinuousRead() {
+  const app = window.__englishStudyApp;
+  if (!app?.reader) return;
+
+  app.reader.runId += 1;
+  app.reader.isReading = false;
+  app.reader.isPaused = app.reader.queue.length > 0;
+
+  stopSpeechAndAudio(app);
 }
 
 function scrollReadingCardIntoView(word) {
@@ -305,39 +511,56 @@ function scrollReadingCardIntoView(word) {
   });
 }
 
-async function startContinuousRead() {
+async function startContinuousRead(options = {}) {
   const app = window.__englishStudyApp;
-  const queue = getContinuousReadQueue(app.words, app.statusMap, app.activeStatus);
+  const orderedWords = getOrderedWords(app.words, app.orderKey);
+  const currentQueue = getContinuousReadQueue(orderedWords, app.statusMap, app.activeStatus);
 
-  if (queue.length === 0) {
+  if (currentQueue.length === 0) {
     showToast("当前分区没有可以朗读的单词。");
     return;
   }
 
-  if (!("speechSynthesis" in window) || !("SpeechSynthesisUtterance" in window)) {
-    showToast("这个浏览器暂时不能连续朗读。");
-    return;
+  const shouldStartFresh = options.fromStart
+    || !app.reader.isPaused
+    || app.reader.activeStatus !== app.activeStatus
+    || app.reader.orderKey !== app.orderKey
+    || app.reader.queue.length === 0;
+
+  app.reader.runId += 1;
+  const runId = app.reader.runId;
+
+  if (shouldStartFresh) {
+    app.reader.queue = currentQueue;
+    app.reader.index = 0;
+  } else if (app.reader.index >= app.reader.queue.length) {
+    app.reader.index = 0;
   }
 
   app.reader.isReading = true;
-  app.reader.queue = queue;
+  app.reader.isPaused = false;
+  app.reader.activeStatus = app.activeStatus;
+  app.reader.orderKey = app.orderKey;
 
-  for (let index = 0; index < queue.length; index += 1) {
-    if (!app.reader.isReading) break;
+  while (app.reader.isReading && app.reader.runId === runId && app.reader.index < app.reader.queue.length) {
+    const item = app.reader.queue[app.reader.index];
 
-    const item = queue[index];
-    app.reader.index = index;
     app.reader.currentWord = item.word;
     render();
     scrollReadingCardIntoView(item.word);
 
     const finished = await speakWordUntilEnd(item.word);
-    if (!finished || !app.reader.isReading) break;
+    if (!finished || !app.reader.isReading || app.reader.runId !== runId) break;
 
+    app.reader.index += 1;
+    render();
     await wait(450);
   }
 
-  stopContinuousRead();
+  if (app.reader.isReading && app.reader.runId === runId && app.reader.index >= app.reader.queue.length) {
+    resetContinuousRead();
+  }
+
   render();
 }
 
@@ -352,19 +575,20 @@ function bindEvents() {
     const tab = event.target.closest("[data-tab]");
     const move = event.target.closest("[data-move]");
     const speak = event.target.closest("[data-speak]");
-    const readAll = event.target.closest("[data-read-all]");
+    const continueReading = event.target.closest("[data-continue-reading]");
     const stopReading = event.target.closest("[data-stop-reading]");
+    const restartReading = event.target.closest("[data-restart-reading]");
     const app = window.__englishStudyApp;
 
     if (tab) {
-      stopContinuousRead();
+      resetContinuousRead();
       app.activeStatus = tab.dataset.tab;
       render();
       return;
     }
 
     if (move) {
-      stopContinuousRead();
+      resetContinuousRead();
       app.statusMap = moveWord(app.statusMap, move.dataset.word, move.dataset.move);
       saveStatusMap(app.statusMap);
       render();
@@ -376,15 +600,32 @@ function bindEvents() {
       return;
     }
 
-    if (readAll) {
+    if (continueReading) {
       startContinuousRead();
       return;
     }
 
     if (stopReading) {
-      stopContinuousRead();
+      pauseContinuousRead();
       render();
+      return;
     }
+
+    if (restartReading) {
+      pauseContinuousRead();
+      startContinuousRead({ fromStart: true });
+    }
+  });
+
+  document.addEventListener("change", (event) => {
+    const orderSelect = event.target.closest("#orderSelect");
+    if (!orderSelect) return;
+
+    const app = window.__englishStudyApp;
+    resetContinuousRead();
+    app.orderKey = ORDER_CONFIG[orderSelect.value] ? orderSelect.value : DEFAULT_ORDER;
+    saveOrderKey(app.orderKey);
+    render();
   });
 }
 
@@ -393,11 +634,17 @@ function initApp() {
     words: WORDS,
     statusMap: loadStatusMap(),
     activeStatus: DEFAULT_STATUS,
+    orderKey: loadOrderKey(),
     reader: {
       isReading: false,
+      isPaused: false,
       queue: [],
       index: 0,
-      currentWord: ""
+      currentWord: "",
+      currentAudio: null,
+      activeStatus: "",
+      orderKey: "",
+      runId: 0
     }
   };
 

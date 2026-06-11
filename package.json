@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test",
+    "test": "node --test scripts/checks/*.test.mjs",
     "dev": "python3 -m http.server 4173",
     "build:words": "node scripts/build-words.mjs",
     "audio:sample": "node scripts/generate-audio.mjs --limit=80",

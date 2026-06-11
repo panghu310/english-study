@@ -6,7 +6,7 @@ import {
   getWordStatus,
   moveWord,
   countByStatus
-} from "../src/app.js";
+} from "../../src/app.js";
 
 const sampleWords = [
   { word: "computer" },

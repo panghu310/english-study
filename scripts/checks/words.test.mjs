@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { WORDS } from "../src/words.js";
+import { WORDS } from "../../src/words.js";
 
 test("样本词表至少包含 50 个词", () => {
   assert.ok(WORDS.length >= 50);
