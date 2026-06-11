@@ -107,6 +107,7 @@ h1 {
 .toolbar {
   min-height: 36px;
   color: var(--muted);
+  margin-bottom: 16px;
 }
 
 .toolbar p {
@@ -117,7 +118,7 @@ h1 {
   display: inline-grid;
   grid-template-columns: auto minmax(130px, 190px);
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   color: var(--muted);
   font-size: 0.94rem;
 }
