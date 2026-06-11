@@ -9,6 +9,7 @@ import {
   getReaderDockState,
   getStatusTabs,
   getVisibleWords,
+  renderWordCardForTest,
   replaceCurrentAudio
 } from "../../src/app.js";
 
@@ -66,6 +67,20 @@ test("连续读队列只包含当前分区的单词", () => {
 test("音频路径使用安全文件名", () => {
   assert.equal(getAudioPath("computer"), "./audio/computer.m4a");
   assert.equal(getAudioPath("log in"), "./audio/log-in.m4a");
+});
+
+test("词卡显示音标时放在原词旁边", () => {
+  const html = renderWordCardForTest({
+    word: "computer",
+    syllables: "com.put.er",
+    phonetic: "/kəmˈpjutər/",
+    meaning: "计算机"
+  }, "new", "");
+
+  assert.match(html, /plain-word/);
+  assert.match(html, /computer/);
+  assert.match(html, /phonetic/);
+  assert.equal(html.includes("/kəmˈpjutər/"), true);
 });
 
 test("推荐顺序按学习频段推进，并打散同频段字母顺序", () => {

@@ -6,16 +6,26 @@ test("样本词表至少包含 50 个词", () => {
   assert.ok(WORDS.length >= 50);
 });
 
-test("每个词都有原词、音节、中文释义和分类", () => {
+test("每个词都有原词、音节、音标、中文释义和分类", () => {
   for (const item of WORDS) {
     assert.equal(typeof item.word, "string");
     assert.equal(typeof item.syllables, "string");
+    assert.equal(typeof item.phonetic, "string");
     assert.equal(typeof item.meaning, "string");
     assert.equal(typeof item.category, "string");
     assert.ok(item.word.length > 0);
     assert.ok(item.syllables.length > 0);
+    assert.ok(item.phonetic.length > 0);
     assert.ok(item.meaning.length > 0);
     assert.ok(["daily", "it"].includes(item.category));
+  }
+});
+
+test("音标使用斜杠包裹的 IPA 显示", () => {
+  for (const item of WORDS) {
+    assert.equal(item.phonetic.startsWith("/"), true);
+    assert.equal(item.phonetic.endsWith("/"), true);
+    assert.equal(/\s/.test(item.phonetic), false);
   }
 });
 

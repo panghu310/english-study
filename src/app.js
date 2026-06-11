@@ -359,6 +359,10 @@ function renderWords(app) {
 function renderWordCard(item) {
   const currentStatus = getWordStatus(window.__englishStudyApp.statusMap, item.word);
   const readingWord = window.__englishStudyApp.reader.currentWord;
+  return renderWordCardForTest(item, currentStatus, readingWord);
+}
+
+export function renderWordCardForTest(item, currentStatus, readingWord) {
   const actionButtons = getAvailableActions(currentStatus)
     .map((action) => {
       return `
@@ -374,7 +378,10 @@ function renderWordCard(item) {
       <div class="word-main">
         <div>
           <p class="syllables">${item.syllables}</p>
-          <p class="plain-word">${item.word}</p>
+          <p class="word-pronunciation">
+            <span class="plain-word">${item.word}</span>
+            <span class="phonetic">${item.phonetic || ""}</span>
+          </p>
         </div>
         <p class="meaning">${item.meaning}</p>
         <button class="speak-button" type="button" data-speak="${item.word}" aria-label="朗读 ${item.word}">

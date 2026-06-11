@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { dictionary as cmuDictionary } from "cmu-pronouncing-dictionary";
 import Hypher from "hypher";
 import english from "hyphenation.en-us";
 
@@ -43,6 +44,96 @@ const MEANING_OVERRIDES = {
   information: "信息",
   remember: "记住",
   understand: "理解"
+};
+
+const PHONETIC_OVERRIDES = {
+  a: "/ə/",
+  it: "/ɪt/",
+  i: "/aɪ/",
+  ok: "/ˌoʊˈkeɪ/",
+  tv: "/ˌtiˈvi/",
+  cd: "/ˌsiˈdi/",
+  flu: "/flu/",
+  ski: "/ski/",
+  analyse: "/ˈænəlaɪz/",
+  colourful: "/ˈkʌlərfəl/",
+  councillor: "/ˈkaʊnsələr/",
+  counselling: "/ˈkaʊnsəlɪŋ/",
+  enrol: "/ɪnˈroʊl/",
+  favourable: "/ˈfeɪvərəbəl/",
+  flavour: "/ˈfleɪvər/",
+  jewellery: "/ˈdʒuəlri/",
+  litre: "/ˈlitər/",
+  maths: "/mæθs/",
+  offence: "/əˈfɛns/",
+  sceptical: "/ˈskɛptɪkəl/",
+  runtime: "/ˈrʌntaɪm/",
+  recursively: "/rɪˈkɜrsɪvli/",
+  nonnegative: "/ˌnɑnˈnɛɡətɪv/",
+  metadata: "/ˈmɛtəˌdeɪtə/",
+  executable: "/ˈɛksɪˌkjutəbəl/",
+  nonzero: "/ˌnɑnˈzɪroʊ/",
+  computationally: "/ˌkɑmpjəˈteɪʃənəli/",
+  classifier: "/ˈklæsəˌfaɪər/",
+  virtualization: "/ˌvɜrtʃuələˈzeɪʃən/",
+  botnet: "/ˈbɑtnɛt/",
+  subproblem: "/ˈsʌbˌprɑbləm/",
+  subtree: "/ˈsʌbˌtri/",
+  usability: "/ˌjuzəˈbɪləti/",
+  recursion: "/rɪˈkɜrʒən/",
+  quantifier: "/ˈkwɑntəˌfaɪər/",
+  operand: "/ˈɑpəˌrænd/",
+  quicksort: "/ˈkwɪkˌsɔrt/",
+  hypervisor: "/ˈhaɪpərˌvaɪzər/",
+  tuple: "/ˈtupəl/",
+  subarray: "/ˈsʌbəˌreɪ/",
+  decidable: "/dɪˈsaɪdəbəl/",
+  subclass: "/ˈsʌbˌklæs/"
+};
+
+const CONSONANT_IPA = {
+  B: "b",
+  CH: "tʃ",
+  D: "d",
+  DH: "ð",
+  F: "f",
+  G: "g",
+  HH: "h",
+  JH: "dʒ",
+  K: "k",
+  L: "l",
+  M: "m",
+  N: "n",
+  NG: "ŋ",
+  P: "p",
+  R: "r",
+  S: "s",
+  SH: "ʃ",
+  T: "t",
+  TH: "θ",
+  V: "v",
+  W: "w",
+  Y: "j",
+  Z: "z",
+  ZH: "ʒ"
+};
+
+const VOWEL_IPA = {
+  AA: "ɑ",
+  AE: "æ",
+  AH: "ʌ",
+  AO: "ɔ",
+  AW: "aʊ",
+  AY: "aɪ",
+  EH: "ɛ",
+  ER: "ər",
+  EY: "eɪ",
+  IH: "ɪ",
+  IY: "i",
+  OW: "oʊ",
+  OY: "ɔɪ",
+  UH: "ʊ",
+  UW: "u"
 };
 
 function getArg(name, fallback = "") {
@@ -252,6 +343,7 @@ function toWordEntry(item, translations) {
   return {
     word: item.word,
     syllables: syllabify(item.word),
+    phonetic: phoneticForWord(item.word),
     meaning: getMeaningOverride(item.word) || cleanMeaning(translations[item.word]) || item.word,
     category: item.category,
     source: item.source,
@@ -259,6 +351,59 @@ function toWordEntry(item, translations) {
     pos: item.pos,
     audio: `audio/${safeAudioName(item.word)}.m4a`
   };
+}
+
+function phoneticForWord(word) {
+  if (Object.hasOwn(PHONETIC_OVERRIDES, word)) return PHONETIC_OVERRIDES[word];
+  const arpabet = lookupArpabet(word);
+  if (!arpabet) return fallbackPhonetic(word);
+  return `/${arpabetToIpa(arpabet)}/`;
+}
+
+function lookupArpabet(word) {
+  const direct = cmuDictionary[word];
+  if (direct) return direct;
+
+  if (!word.includes("-")) return "";
+
+  const parts = word.split("-");
+  const partPronunciations = parts.map((part) => cmuDictionary[part]);
+  if (partPronunciations.every(Boolean)) {
+    return partPronunciations.join(" ");
+  }
+
+  return "";
+}
+
+function arpabetToIpa(value) {
+  const phones = value.split(/\s+/).filter(Boolean);
+  const vowelCount = phones.filter((phone) => Object.hasOwn(VOWEL_IPA, phone.replace(/[012]$/, ""))).length;
+
+  return phones
+    .map((phone) => arpabetPhoneToIpa(phone, vowelCount > 1))
+    .join("")
+    .replace(/ˈə/g, "ˈʌ")
+    .replace(/ˌə/g, "ˌʌ");
+}
+
+function arpabetPhoneToIpa(phone, includeStress) {
+  const base = phone.replace(/[012]$/, "");
+  const stress = phone.match(/[012]$/)?.[0] || "";
+
+  if (Object.hasOwn(CONSONANT_IPA, base)) return CONSONANT_IPA[base];
+
+  let ipa = VOWEL_IPA[base] || base.toLowerCase();
+  if (base === "AH" && stress === "0") ipa = "ə";
+  if (includeStress && stress === "1") return `ˈ${ipa}`;
+  if (includeStress && stress === "2") return `ˌ${ipa}`;
+  return ipa;
+}
+
+function fallbackPhonetic(word) {
+  const rough = syllabify(word)
+    .replace(/\./g, "")
+    .replace(/[^a-z-]/g, "");
+  return `/${rough || word}/`;
 }
 
 function getMeaningOverride(word) {
@@ -337,6 +482,7 @@ function normalizeEntry(entry) {
   return {
     word: entry.word,
     syllables: entry.syllables || entry.word,
+    phonetic: entry.phonetic || fallbackPhonetic(entry.word),
     meaning: entry.meaning || entry.word,
     category: entry.category || "daily",
     source: entry.source || "generated",

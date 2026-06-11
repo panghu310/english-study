@@ -12,6 +12,7 @@
     "audio:status": "node scripts/audio-status.mjs"
   },
   "dependencies": {
+    "cmu-pronouncing-dictionary": "^3.0.0",
     "hyphenation.en-us": "^0.2.1",
     "hypher": "^0.2.5"
   }
