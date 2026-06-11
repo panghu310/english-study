@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   countByStatus,
+  extractDictionaryAudioUrl,
   getAvailableActions,
   getAudioPath,
   getContinuousReadQueue,
@@ -67,6 +68,32 @@ test("连续读队列只包含当前分区的单词", () => {
 test("音频路径使用安全文件名", () => {
   assert.equal(getAudioPath("computer"), "./audio/computer.m4a");
   assert.equal(getAudioPath("log in"), "./audio/log-in.m4a");
+});
+
+test("从 dictionaryapi.dev 返回里提取第一个可用音频", () => {
+  const audioUrl = extractDictionaryAudioUrl([
+    {
+      phonetics: [
+        { text: "/bad/" },
+        { audio: "" },
+        { audio: "//api.dictionaryapi.dev/media/pronunciations/en/six-us.mp3" }
+      ]
+    }
+  ]);
+
+  assert.equal(audioUrl, "https://api.dictionaryapi.dev/media/pronunciations/en/six-us.mp3");
+});
+
+test("词卡提供在线核对读音按钮", () => {
+  const html = renderWordCardForTest({
+    word: "computer",
+    syllables: "com.put.er",
+    phonetic: "/kəmˈpjutər/",
+    meaning: "计算机"
+  }, "new", "");
+
+  assert.match(html, /data-check-pronunciation="computer"/);
+  assert.match(html, /核对/);
 });
 
 test("词卡显示音标时放在原词旁边", () => {

@@ -32,6 +32,7 @@ export const STATUS_CONFIG = {
 const STORAGE_KEY = "english-pocket-dictionary-status-v1";
 const ORDER_STORAGE_KEY = "english-pocket-dictionary-order-v1";
 const DEFAULT_ORDER = "recommended";
+const DICTIONARY_AUDIO_ENDPOINT = "https://api.dictionaryapi.dev/api/v2/entries/en/";
 
 export const ORDER_CONFIG = {
   recommended: {
@@ -234,6 +235,23 @@ export function replaceCurrentAudio(owner, nextAudio) {
   }
 }
 
+export function extractDictionaryAudioUrl(entries) {
+  if (!Array.isArray(entries)) return "";
+
+  for (const entry of entries) {
+    if (!Array.isArray(entry?.phonetics)) continue;
+
+    for (const phonetic of entry.phonetics) {
+      const audio = String(phonetic?.audio || "").trim();
+      if (!audio) continue;
+      if (audio.startsWith("//")) return `https:${audio}`;
+      return audio;
+    }
+  }
+
+  return "";
+}
+
 function isBrowser() {
   return typeof window !== "undefined" && typeof document !== "undefined";
 }
@@ -384,9 +402,14 @@ export function renderWordCardForTest(item, currentStatus, readingWord) {
           </p>
         </div>
         <p class="meaning">${item.meaning}</p>
-        <button class="speak-button" type="button" data-speak="${item.word}" aria-label="朗读 ${item.word}">
-          朗读
-        </button>
+        <div class="speech-actions">
+          <button class="speak-button" type="button" data-speak="${item.word}" aria-label="朗读 ${item.word}">
+            朗读
+          </button>
+          <button class="check-button" type="button" data-check-pronunciation="${item.word}" aria-label="在线核对 ${item.word} 读音">
+            核对
+          </button>
+        </div>
       </div>
       <div class="word-actions">${actionButtons}</div>
     </article>
@@ -410,6 +433,48 @@ async function speakWord(word) {
   utterance.rate = 0.82;
   window.speechSynthesis.speak(utterance);
   return true;
+}
+
+async function checkPronunciationOnline(word) {
+  const app = window.__englishStudyApp;
+
+  try {
+    const audioUrl = await getDictionaryAudioUrl(word);
+    if (!audioUrl) {
+      showToast("在线词典没有这个词的音频。");
+      return false;
+    }
+
+    const audio = new Audio(audioUrl);
+    audio.preload = "auto";
+    replaceCurrentAudio(app.speaker, audio);
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+    await audio.play();
+    return true;
+  } catch {
+    showToast("在线核对失败，稍后再试。");
+    return false;
+  }
+}
+
+async function getDictionaryAudioUrl(word) {
+  const app = window.__englishStudyApp;
+  const cache = app.dictionaryAudioCache;
+
+  if (Object.hasOwn(cache, word)) return cache[word];
+
+  const response = await fetch(`${DICTIONARY_AUDIO_ENDPOINT}${encodeURIComponent(word)}`);
+  if (!response.ok) {
+    cache[word] = "";
+    return "";
+  }
+
+  const entries = await response.json();
+  const audioUrl = extractDictionaryAudioUrl(entries);
+  cache[word] = audioUrl;
+  return audioUrl;
 }
 
 async function speakWordUntilEnd(word) {
@@ -593,6 +658,7 @@ function bindEvents() {
     const tab = event.target.closest("[data-tab]");
     const move = event.target.closest("[data-move]");
     const speak = event.target.closest("[data-speak]");
+    const checkPronunciation = event.target.closest("[data-check-pronunciation]");
     const continueReading = event.target.closest("[data-continue-reading]");
     const stopReading = event.target.closest("[data-stop-reading]");
     const restartReading = event.target.closest("[data-restart-reading]");
@@ -615,6 +681,11 @@ function bindEvents() {
 
     if (speak) {
       speakWord(speak.dataset.speak);
+      return;
+    }
+
+    if (checkPronunciation) {
+      checkPronunciationOnline(checkPronunciation.dataset.checkPronunciation);
       return;
     }
 
@@ -666,7 +737,8 @@ function initApp() {
     },
     speaker: {
       currentAudio: null
-    }
+    },
+    dictionaryAudioCache: {}
   };
 
   bindEvents();
